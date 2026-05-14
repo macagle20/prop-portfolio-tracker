@@ -1,0 +1,85 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: radial-gradient(circle at top left, #2aff7a 0%, #111315 28%, #090909 70%);
+  color: white;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.hero-card {
+  width: 100%;
+  max-width: 1100px;
+  background: rgba(18, 20, 22, 0.92);
+  border: 1px solid #26292d;
+  border-radius: 28px;
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(42,255,122,0.12);
+  border: 1px solid rgba(42,255,122,0.2);
+  color: #8dffb2;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  margin-top: 24px;
+  margin-bottom: 12px;
+  font-size: 56px;
+  line-height: 1;
+}
+
+p {
+  color: #8b949e;
+  font-size: 18px;
+  max-width: 620px;
+}
+
+.stats-grid {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.stat-card {
+  background: #16191c;
+  border: 1px solid #26292d;
+  border-radius: 22px;
+  padding: 24px;
+}
+
+.stat-card.green {
+  background: linear-gradient(135deg, rgba(42,255,122,0.18), rgba(22,25,28,1));
+  border-color: rgba(42,255,122,0.25);
+}
+
+.label {
+  color: #8b949e;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.value {
+  font-size: 36px;
+  font-weight: 800;
+}
