@@ -1,29 +1,250 @@
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from './lib/supabaseClient'
+
+const propFirms = ['Lucid', 'Apex', 'Tradify', 'MyFundedFutures']
+const statuses = ['Active', 'Passed', 'Busted', 'Paused']
+const accountTypes = ['Eval', 'Funded']
+
+function formatMoney(value) {
+  const num = Number(value || 0)
+  return `${num < 0 ? '-' : ''}$${Math.abs(num).toLocaleString()}`
+}
+
 export default function App() {
+  const [accounts, setAccounts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const [name, setName] = useState('')
+  const [firm, setFirm] = useState('Tradify')
+  const [accountType, setAccountType] = useState('Eval')
+  const [status, setStatus] = useState('Active')
+  const [startingBalance, setStartingBalance] = useState('50000')
+  const [evalCost, setEvalCost] = useState('0')
+
+  const totals = useMemo(() => {
+    const totalCosts = accounts.reduce((sum, account) => sum + Number(account.eval_cost || 0), 0)
+
+    return {
+      totalAccounts: accounts.length,
+      activeAccounts: accounts.filter(a => a.status !== 'Busted').length,
+      fundedAccounts: accounts.filter(a => a.account_type === 'Funded').length,
+      totalCosts,
+    }
+  }, [accounts])
+
+  async function ensureDemoSession() {
+    const { data: sessionData } = await supabase.auth.getSession()
+
+    if (sessionData.session) {
+      return sessionData.session.user
+    }
+
+    const email = `demo-${crypto.randomUUID()}@proptrack.dev`
+    const password = crypto.randomUUID()
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+
+    if (error) {
+      setError(error.message)
+      return null
+    }
+
+    return data.user
+  }
+
+  async function loadAccounts() {
+    setLoading(true)
+
+    const { data, error } = await supabase
+      .from('accounts')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      setError(error.message)
+    } else {
+      setAccounts(data || [])
+    }
+
+    setLoading(false)
+  }
+
+  async function addAccount(event) {
+    event.preventDefault()
+
+    setError('')
+
+    const user = await ensureDemoSession()
+
+    if (!user) return
+
+    const { error } = await supabase.from('accounts').insert({
+      user_id: user.id,
+      name,
+      firm,
+      account_type: accountType,
+      status,
+      starting_balance: Number(startingBalance || 0),
+      eval_cost: Number(evalCost || 0),
+    })
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    setName('')
+    setEvalCost('0')
+
+    await loadAccounts()
+  }
+
+  async function deleteAccount(id) {
+    await supabase
+      .from('accounts')
+      .delete()
+      .eq('id', id)
+
+    await loadAccounts()
+  }
+
+  useEffect(() => {
+    loadAccounts()
+  }, [])
+
   return (
     <main className="app-shell">
-      <div className="hero-card">
-        <div className="status-pill">LIVE</div>
-        <h1>Prop Portfolio Tracker</h1>
-        <p>
-          Your prop firm operating system is officially running.
-        </p>
-
-        <div className="stats-grid">
-          <div className="stat-card green">
-            <div className="label">Actual Net</div>
-            <div className="value">$0</div>
+      <div className="dashboard-layout">
+        <aside className="sidebar-card">
+          <div className="logo-row">
+            <div className="logo-circle">P</div>
+            <div>
+              <div className="logo-title">PropTrack</div>
+              <div className="logo-subtitle">Portfolio OS</div>
+            </div>
           </div>
 
-          <div className="stat-card">
-            <div className="label">Accounts</div>
-            <div className="value">0</div>
+          <div className="highlight-card">
+            <div className="highlight-label">Eval Costs</div>
+            <div className="highlight-value">
+              {formatMoney(totals.totalCosts)}
+            </div>
+            <div className="highlight-subtext">
+              Backend connected successfully.
+            </div>
+          </div>
+        </aside>
+
+        <section className="main-content">
+          <div className="hero-card">
+            <div className="status-pill">SUPABASE CONNECTED</div>
+
+            <h1>Prop Portfolio Tracker</h1>
+
+            <p>
+              Accounts now persist in your real backend database.
+            </p>
+
+            {error ? (
+              <div className="error-banner">{error}</div>
+            ) : null}
+
+            <div className="stats-grid">
+              <div className="stat-card green">
+                <div className="label">Accounts</div>
+                <div className="value">{totals.totalAccounts}</div>
+              </div>
+
+              <div className="stat-card">
+                <div className="label">Active</div>
+                <div className="value">{totals.activeAccounts}</div>
+              </div>
+
+              <div className="stat-card">
+                <div className="label">Funded</div>
+                <div className="value">{totals.fundedAccounts}</div>
+              </div>
+            </div>
           </div>
 
-          <div className="stat-card">
-            <div className="label">Pass Rate</div>
-            <div className="value">0%</div>
+          <div className="panel-card">
+            <div className="panel-title">Add Account</div>
+
+            <form className="account-form" onSubmit={addAccount}>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Account Name" className="input" required />
+
+              <select value={firm} onChange={(e) => setFirm(e.target.value)} className="input">
+                {propFirms.map(firm => <option key={firm}>{firm}</option>)}
+              </select>
+
+              <select value={accountType} onChange={(e) => setAccountType(e.target.value)} className="input">
+                {accountTypes.map(type => <option key={type}>{type}</option>)}
+              </select>
+
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+                {statuses.map(status => <option key={status}>{status}</option>)}
+              </select>
+
+              <input value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} placeholder="Starting Balance" className="input" />
+
+              <input value={evalCost} onChange={(e) => setEvalCost(e.target.value)} placeholder="Eval Cost" className="input" />
+
+              <button className="primary-button" type="submit">
+                Add Account
+              </button>
+            </form>
           </div>
-        </div>
+
+          <div className="panel-card">
+            <div className="panel-title">Accounts</div>
+
+            {loading ? (
+              <div className="empty-state">Loading...</div>
+            ) : accounts.length === 0 ? (
+              <div className="empty-state">No accounts yet.</div>
+            ) : (
+              <div className="accounts-grid">
+                {accounts.map(account => (
+                  <div className="account-card" key={account.id}>
+                    <div className="account-card-top">
+                      <div>
+                        <div className="account-name">{account.name}</div>
+                        <div className="account-meta">
+                          {account.firm} • {account.account_type}
+                        </div>
+                      </div>
+
+                      <button className="delete-button" onClick={() => deleteAccount(account.id)}>
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="account-stats-row">
+                      <div>
+                        <div className="small-label">Status</div>
+                        <div className="small-value">{account.status}</div>
+                      </div>
+
+                      <div>
+                        <div className="small-label">Eval Cost</div>
+                        <div className="small-value">{formatMoney(account.eval_cost)}</div>
+                      </div>
+
+                      <div>
+                        <div className="small-label">Balance</div>
+                        <div className="small-value">{formatMoney(account.starting_balance)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </main>
   )
