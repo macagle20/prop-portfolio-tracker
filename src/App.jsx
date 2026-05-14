@@ -4,10 +4,44 @@ import { supabase } from './lib/supabaseClient'
 const propFirms = ['Lucid', 'Apex', 'Tradify', 'MyFundedFutures']
 const statuses = ['Active', 'Passed', 'Busted', 'Paused']
 const accountTypes = ['Eval', 'Funded']
+const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 function formatMoney(value) {
   const num = Number(value || 0)
   return `${num < 0 ? '-' : ''}$${Math.abs(num).toLocaleString()}`
+}
+
+function toDateKey(date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function getMonday(date = new Date()) {
+  const copy = new Date(date)
+  const day = copy.getDay()
+  const diff = copy.getDate() - day + (day === 0 ? -6 : 1)
+  copy.setDate(diff)
+  copy.setHours(0, 0, 0, 0)
+  return copy
+}
+
+function getWeekDays(weekStart) {
+  return dayNames.map((dayName, index) => {
+    const date = new Date(weekStart)
+    date.setDate(weekStart.getDate() + index)
+    return {
+      label: dayName,
+      shortLabel: dayName.slice(0, 3),
+      date,
+      dateKey: toDateKey(date),
+    }
+  })
+}
+
+function parseNumber(value) {
+  if (value === '' || value === null || value === undefined) return 0
+  const cleaned = String(value).replace(/[$,]/g, '')
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 export default function App() {
@@ -19,8 +53,13 @@ export default function App() {
   const [authMessage, setAuthMessage] = useState('')
 
   const [accounts, setAccounts] = useState([])
+  const [dailyEntries, setDailyEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const [weekStart, setWeekStart] = useState(getMonday())
+  const [dailyDrafts, setDailyDrafts] = useState({})
+  const [savingEntryKey, setSavingEntryKey] = useState('')
 
   const [name, setName] = useState('')
   const [firm, setFirm] = useState('Tradify')
@@ -29,16 +68,48 @@ export default function App() {
   const [startingBalance, setStartingBalance] = useState('50000')
   const [evalCost, setEvalCost] = useState('0')
 
+  const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart])
+  const weekStartKey = weekDays[0].dateKey
+  const weekEndKey = weekDays[weekDays.length - 1].dateKey
+
+  const entryByAccountDate = useMemo(() => {
+    return dailyEntries.reduce((map, entry) => {
+      map[`${entry.account_id}-${entry.entry_date}`] = entry
+      return map
+    }, {})
+  }, [dailyEntries])
+
+  const accountStats = useMemo(() => {
+    return accounts.reduce((map, account) => {
+      const entries = dailyEntries.filter(entry => entry.account_id === account.id)
+      const allTimePnl = entries.reduce((sum, entry) => sum + Number(entry.pnl || 0), 0)
+      const weekPnl = entries
+        .filter(entry => entry.entry_date >= weekStartKey && entry.entry_date <= weekEndKey)
+        .reduce((sum, entry) => sum + Number(entry.pnl || 0), 0)
+
+      map[account.id] = {
+        allTimePnl,
+        weekPnl,
+        currentBalance: Number(account.starting_balance || 0) + allTimePnl,
+      }
+      return map
+    }, {})
+  }, [accounts, dailyEntries, weekStartKey, weekEndKey])
+
   const totals = useMemo(() => {
     const totalCosts = accounts.reduce((sum, account) => sum + Number(account.eval_cost || 0), 0)
+    const weeklyPnl = Object.values(accountStats).reduce((sum, stat) => sum + stat.weekPnl, 0)
+    const allTimePnl = Object.values(accountStats).reduce((sum, stat) => sum + stat.allTimePnl, 0)
 
     return {
       totalAccounts: accounts.length,
       activeAccounts: accounts.filter(a => a.status !== 'Busted').length,
       fundedAccounts: accounts.filter(a => a.account_type === 'Funded').length,
       totalCosts,
+      weeklyPnl,
+      allTimePnl,
     }
-  }, [accounts])
+  }, [accounts, accountStats])
 
   async function loadAccounts() {
     setLoading(true)
@@ -55,6 +126,25 @@ export default function App() {
       setAccounts(data || [])
     }
 
+    setLoading(false)
+  }
+
+  async function loadDailyEntries() {
+    const { data, error } = await supabase
+      .from('daily_entries')
+      .select('*')
+      .order('entry_date', { ascending: false })
+
+    if (error) {
+      setError(error.message)
+    } else {
+      setDailyEntries(data || [])
+    }
+  }
+
+  async function loadDashboardData() {
+    setLoading(true)
+    await Promise.all([loadAccounts(), loadDailyEntries()])
     setLoading(false)
   }
 
@@ -89,6 +179,7 @@ export default function App() {
   async function signOut() {
     await supabase.auth.signOut()
     setAccounts([])
+    setDailyEntries([])
     setSession(null)
   }
 
@@ -120,7 +211,7 @@ export default function App() {
     setName('')
     setEvalCost('0')
 
-    await loadAccounts()
+    await loadDashboardData()
   }
 
   async function deleteAccount(id) {
@@ -134,7 +225,79 @@ export default function App() {
       return
     }
 
-    await loadAccounts()
+    await loadDashboardData()
+  }
+
+  function getDailyValue(accountId, dateKey) {
+    const draftKey = `${accountId}-${dateKey}`
+    if (Object.prototype.hasOwnProperty.call(dailyDrafts, draftKey)) {
+      return dailyDrafts[draftKey]
+    }
+
+    return entryByAccountDate[draftKey]?.pnl ?? ''
+  }
+
+  function updateDailyDraft(accountId, dateKey, value) {
+    setDailyDrafts(current => ({
+      ...current,
+      [`${accountId}-${dateKey}`]: value,
+    }))
+  }
+
+  async function saveDailyEntry(account, dateKey) {
+    if (!session?.user?.id) return
+
+    const draftKey = `${account.id}-${dateKey}`
+    const rawValue = getDailyValue(account.id, dateKey)
+    const pnl = parseNumber(rawValue)
+    const existingEntry = entryByAccountDate[draftKey]
+
+    setSavingEntryKey(draftKey)
+    setError('')
+
+    if (existingEntry) {
+      const { error } = await supabase
+        .from('daily_entries')
+        .update({ pnl })
+        .eq('id', existingEntry.id)
+
+      if (error) {
+        setError(error.message)
+        setSavingEntryKey('')
+        return
+      }
+    } else {
+      const { error } = await supabase.from('daily_entries').insert({
+        account_id: account.id,
+        user_id: session.user.id,
+        entry_date: dateKey,
+        pnl,
+      })
+
+      if (error) {
+        setError(error.message)
+        setSavingEntryKey('')
+        return
+      }
+    }
+
+    setDailyDrafts(current => {
+      const next = { ...current }
+      delete next[draftKey]
+      return next
+    })
+
+    await loadDailyEntries()
+    setSavingEntryKey('')
+  }
+
+  function changeWeek(offset) {
+    setWeekStart(current => {
+      const next = new Date(current)
+      next.setDate(current.getDate() + offset * 7)
+      return next
+    })
+    setDailyDrafts({})
   }
 
   useEffect(() => {
@@ -154,9 +317,10 @@ export default function App() {
 
   useEffect(() => {
     if (session) {
-      loadAccounts()
+      loadDashboardData()
     } else {
       setAccounts([])
+      setDailyEntries([])
       setLoading(false)
     }
   }, [session])
@@ -301,7 +465,7 @@ export default function App() {
             <h1>FundedAF Dashboard</h1>
 
             <p>
-              Accounts now persist in your real backend database and are protected by user-level security.
+              Current week inputs are saved as dated entries, so your weekly view stays simple while your long-term history stays intact.
             </p>
 
             {error ? (
@@ -310,18 +474,18 @@ export default function App() {
 
             <div className="stats-grid">
               <div className="stat-card green">
-                <div className="label">Accounts</div>
-                <div className="value">{totals.totalAccounts}</div>
+                <div className="label">This Week P&L</div>
+                <div className="value">{formatMoney(totals.weeklyPnl)}</div>
+              </div>
+
+              <div className="stat-card">
+                <div className="label">All-Time P&L</div>
+                <div className="value">{formatMoney(totals.allTimePnl)}</div>
               </div>
 
               <div className="stat-card">
                 <div className="label">Active</div>
                 <div className="value">{totals.activeAccounts}</div>
-              </div>
-
-              <div className="stat-card">
-                <div className="label">Funded</div>
-                <div className="value">{totals.fundedAccounts}</div>
               </div>
             </div>
           </div>
@@ -354,6 +518,76 @@ export default function App() {
             </form>
           </div>
 
+          <div className="panel-card weekly-panel">
+            <div className="weekly-header">
+              <div>
+                <div className="panel-title">Daily Profit Inputs</div>
+                <p className="panel-copy">Showing {weekStartKey} through {weekEndKey}. Use previous/next week to view or edit historical daily entries.</p>
+              </div>
+              <div className="week-controls">
+                <button className="secondary-button compact" type="button" onClick={() => changeWeek(-1)}>Previous Week</button>
+                <button className="secondary-button compact" type="button" onClick={() => setWeekStart(getMonday())}>Current Week</button>
+                <button className="secondary-button compact" type="button" onClick={() => changeWeek(1)}>Next Week</button>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="empty-state">Loading...</div>
+            ) : accounts.length === 0 ? (
+              <div className="empty-state">No accounts yet. Add an account before entering daily profit.</div>
+            ) : (
+              <div className="weekly-table-wrap">
+                <table className="weekly-table">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Balance</th>
+                      {weekDays.map(day => <th key={day.dateKey}>{day.shortLabel}<span>{day.dateKey.slice(5)}</span></th>)}
+                      <th>Week</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accounts.map(account => {
+                      const stats = accountStats[account.id] || { currentBalance: account.starting_balance, weekPnl: 0 }
+
+                      return (
+                        <tr key={account.id}>
+                          <td>
+                            <div className="weekly-account-name">{account.name}</div>
+                            <div className="account-meta">{account.firm} • {account.account_type}</div>
+                          </td>
+                          <td className="balance-cell">{formatMoney(stats.currentBalance)}</td>
+                          {weekDays.map(day => {
+                            const draftKey = `${account.id}-${day.dateKey}`
+                            const isSaving = savingEntryKey === draftKey
+                            return (
+                              <td key={day.dateKey}>
+                                <input
+                                  className="daily-input"
+                                  value={getDailyValue(account.id, day.dateKey)}
+                                  onChange={(event) => updateDailyDraft(account.id, day.dateKey, event.target.value)}
+                                  onBlur={() => saveDailyEntry(account, day.dateKey)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.currentTarget.blur()
+                                    }
+                                  }}
+                                  placeholder="0"
+                                />
+                                {isSaving ? <div className="saving-label">Saving</div> : null}
+                              </td>
+                            )
+                          })}
+                          <td className={stats.weekPnl >= 0 ? 'positive-cell' : 'negative-cell'}>{formatMoney(stats.weekPnl)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           <div className="panel-card">
             <div className="panel-title">Accounts</div>
 
@@ -363,39 +597,43 @@ export default function App() {
               <div className="empty-state">No accounts yet.</div>
             ) : (
               <div className="accounts-grid">
-                {accounts.map(account => (
-                  <div className="account-card" key={account.id}>
-                    <div className="account-card-top">
-                      <div>
-                        <div className="account-name">{account.name}</div>
-                        <div className="account-meta">
-                          {account.firm} • {account.account_type}
+                {accounts.map(account => {
+                  const stats = accountStats[account.id] || { currentBalance: account.starting_balance, allTimePnl: 0, weekPnl: 0 }
+
+                  return (
+                    <div className="account-card" key={account.id}>
+                      <div className="account-card-top">
+                        <div>
+                          <div className="account-name">{account.name}</div>
+                          <div className="account-meta">
+                            {account.firm} • {account.account_type}
+                          </div>
+                        </div>
+
+                        <button className="delete-button" onClick={() => deleteAccount(account.id)}>
+                          ×
+                        </button>
+                      </div>
+
+                      <div className="account-stats-row">
+                        <div>
+                          <div className="small-label">Status</div>
+                          <div className="small-value">{account.status}</div>
+                        </div>
+
+                        <div>
+                          <div className="small-label">Balance</div>
+                          <div className="small-value">{formatMoney(stats.currentBalance)}</div>
+                        </div>
+
+                        <div>
+                          <div className="small-label">Week P&L</div>
+                          <div className="small-value">{formatMoney(stats.weekPnl)}</div>
                         </div>
                       </div>
-
-                      <button className="delete-button" onClick={() => deleteAccount(account.id)}>
-                        ×
-                      </button>
                     </div>
-
-                    <div className="account-stats-row">
-                      <div>
-                        <div className="small-label">Status</div>
-                        <div className="small-value">{account.status}</div>
-                      </div>
-
-                      <div>
-                        <div className="small-label">Eval Cost</div>
-                        <div className="small-value">{formatMoney(account.eval_cost)}</div>
-                      </div>
-
-                      <div>
-                        <div className="small-label">Balance</div>
-                        <div className="small-value">{formatMoney(account.starting_balance)}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
