@@ -11,6 +11,13 @@ function formatMoney(value) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(null)
+  const [authMode, setAuthMode] = useState('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [authMessage, setAuthMessage] = useState('')
+
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -33,31 +40,9 @@ export default function App() {
     }
   }, [accounts])
 
-  async function ensureDemoSession() {
-    const { data: sessionData } = await supabase.auth.getSession()
-
-    if (sessionData.session) {
-      return sessionData.session.user
-    }
-
-    const email = `demo${Date.now()}@gmail.com`
-    const password = crypto.randomUUID()
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-
-    if (error) {
-      setError(error.message)
-      return null
-    }
-
-    return data.user
-  }
-
   async function loadAccounts() {
     setLoading(true)
+    setError('')
 
     const { data, error } = await supabase
       .from('accounts')
@@ -73,17 +58,52 @@ export default function App() {
     setLoading(false)
   }
 
+  async function handleAuth(event) {
+    event.preventDefault()
+    setAuthLoading(true)
+    setError('')
+    setAuthMessage('')
+
+    const credentials = {
+      email: authEmail,
+      password: authPassword,
+    }
+
+    const response = authMode === 'login'
+      ? await supabase.auth.signInWithPassword(credentials)
+      : await supabase.auth.signUp(credentials)
+
+    if (response.error) {
+      setError(response.error.message)
+    } else if (authMode === 'register' && !response.data.session) {
+      setAuthMessage('Registration created. Check your email to confirm your account, then log in.')
+    } else {
+      setSession(response.data.session)
+      setAuthEmail('')
+      setAuthPassword('')
+    }
+
+    setAuthLoading(false)
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut()
+    setAccounts([])
+    setSession(null)
+  }
+
   async function addAccount(event) {
     event.preventDefault()
 
     setError('')
 
-    const user = await ensureDemoSession()
-
-    if (!user) return
+    if (!session?.user?.id) {
+      setError('You must be logged in to add an account.')
+      return
+    }
 
     const { error } = await supabase.from('accounts').insert({
-      user_id: user.id,
+      user_id: session.user.id,
       name,
       firm,
       account_type: accountType,
@@ -104,17 +124,98 @@ export default function App() {
   }
 
   async function deleteAccount(id) {
-    await supabase
+    const { error } = await supabase
       .from('accounts')
       .delete()
       .eq('id', id)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
 
     await loadAccounts()
   }
 
   useEffect(() => {
-    loadAccounts()
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setLoading(false)
+    })
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+    })
+
+    return () => {
+      listener.subscription.unsubscribe()
+    }
   }, [])
+
+  useEffect(() => {
+    if (session) {
+      loadAccounts()
+    } else {
+      setAccounts([])
+      setLoading(false)
+    }
+  }, [session])
+
+  if (!session) {
+    return (
+      <main className="app-shell auth-shell">
+        <section className="auth-card">
+          <div className="status-pill">SUPABASE AUTH</div>
+          <h1>Prop Portfolio Tracker</h1>
+          <p>
+            Log in or create an account so your prop firm portfolio is saved securely to your Supabase database.
+          </p>
+
+          {error ? <div className="error-banner">{error}</div> : null}
+          {authMessage ? <div className="success-banner">{authMessage}</div> : null}
+
+          <form className="auth-form" onSubmit={handleAuth}>
+            <input
+              className="input"
+              type="email"
+              value={authEmail}
+              onChange={(event) => setAuthEmail(event.target.value)}
+              placeholder="Email address"
+              required
+            />
+
+            <input
+              className="input"
+              type="password"
+              value={authPassword}
+              onChange={(event) => setAuthPassword(event.target.value)}
+              placeholder="Password"
+              minLength={6}
+              required
+            />
+
+            <button className="primary-button" type="submit" disabled={authLoading}>
+              {authLoading ? 'Working...' : authMode === 'login' ? 'Log In' : 'Create Account'}
+            </button>
+          </form>
+
+          <button
+            className="text-button"
+            type="button"
+            onClick={() => {
+              setAuthMode(authMode === 'login' ? 'register' : 'login')
+              setError('')
+              setAuthMessage('')
+            }}
+          >
+            {authMode === 'login'
+              ? 'Need an account? Register here.'
+              : 'Already have an account? Log in here.'}
+          </button>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="app-shell">
@@ -126,6 +227,12 @@ export default function App() {
               <div className="logo-title">PropTrack</div>
               <div className="logo-subtitle">Portfolio OS</div>
             </div>
+          </div>
+
+          <div className="user-card">
+            <div className="small-label">Signed in as</div>
+            <div className="user-email">{session.user.email}</div>
+            <button className="secondary-button" type="button" onClick={signOut}>Log Out</button>
           </div>
 
           <div className="highlight-card">
@@ -146,7 +253,7 @@ export default function App() {
             <h1>Prop Portfolio Tracker</h1>
 
             <p>
-              Accounts now persist in your real backend database.
+              Accounts now persist in your real backend database and are protected by user-level security.
             </p>
 
             {error ? (
