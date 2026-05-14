@@ -163,41 +163,89 @@ export default function App() {
 
   if (!session) {
     return (
-      <main className="app-shell auth-shell">
-        <section className="auth-card">
-          <div className="status-pill">SUPABASE AUTH</div>
-          <h1>Prop Portfolio Tracker</h1>
+      <main className="auth-page">
+        <section className="auth-hero-panel">
+          <div className="auth-brand-row">
+            <div className="logo-circle">P</div>
+            <div>
+              <div className="logo-title">PropTrack</div>
+              <div className="logo-subtitle">Portfolio OS</div>
+            </div>
+          </div>
+
+          <div className="status-pill">PROP FIRM PERFORMANCE TRACKING</div>
+          <h1>Track the only number that really matters.</h1>
           <p>
-            Log in or create an account so your prop firm portfolio is saved securely to your Supabase database.
+            Separate paper profits from real extracted cash. Track eval costs, funded accounts, payouts, and firm-by-firm performance in one clean dashboard.
           </p>
+
+          <div className="auth-feature-grid">
+            <div className="auth-feature-card">
+              <span>01</span>
+              <strong>Realized P&L</strong>
+              <p>Payouts minus eval costs, not inflated challenge balances.</p>
+            </div>
+            <div className="auth-feature-card">
+              <span>02</span>
+              <strong>Prop Firm Stats</strong>
+              <p>Compare Apex, Lucid, Tradify, and MyFundedFutures performance.</p>
+            </div>
+            <div className="auth-feature-card">
+              <span>03</span>
+              <strong>Secure Portfolio</strong>
+              <p>Your accounts are protected with Supabase authentication and RLS.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="auth-card">
+          <div className="auth-card-header">
+            <div className="auth-eyebrow">Welcome {authMode === 'login' ? 'back' : 'aboard'}</div>
+            <h2>{authMode === 'login' ? 'Log in to your tracker' : 'Create your account'}</h2>
+            <p>
+              {authMode === 'login'
+                ? 'Access your prop portfolio dashboard and continue tracking your real performance.'
+                : 'Start building a cleaner record of your prop firm costs, payouts, and account outcomes.'}
+            </p>
+          </div>
 
           {error ? <div className="error-banner">{error}</div> : null}
           {authMessage ? <div className="success-banner">{authMessage}</div> : null}
 
           <form className="auth-form" onSubmit={handleAuth}>
-            <input
-              className="input"
-              type="email"
-              value={authEmail}
-              onChange={(event) => setAuthEmail(event.target.value)}
-              placeholder="Email address"
-              required
-            />
+            <label className="auth-field">
+              <span>Email address</span>
+              <input
+                className="input"
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                placeholder="you@example.com"
+                required
+              />
+            </label>
 
-            <input
-              className="input"
-              type="password"
-              value={authPassword}
-              onChange={(event) => setAuthPassword(event.target.value)}
-              placeholder="Password"
-              minLength={6}
-              required
-            />
+            <label className="auth-field">
+              <span>Password</span>
+              <input
+                className="input"
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                placeholder="Minimum 6 characters"
+                minLength={6}
+                required
+              />
+            </label>
 
-            <button className="primary-button" type="submit" disabled={authLoading}>
+            <button className="primary-button auth-submit" type="submit" disabled={authLoading}>
               {authLoading ? 'Working...' : authMode === 'login' ? 'Log In' : 'Create Account'}
             </button>
           </form>
+
+          <div className="auth-divider">
+            <span>{authMode === 'login' ? 'New here?' : 'Already registered?'}</span>
+          </div>
 
           <button
             className="text-button"
@@ -209,8 +257,8 @@ export default function App() {
             }}
           >
             {authMode === 'login'
-              ? 'Need an account? Register here.'
-              : 'Already have an account? Log in here.'}
+              ? 'Create a PropTrack account'
+              : 'Log in to an existing account'}
           </button>
         </section>
       </main>
