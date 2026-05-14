@@ -40,7 +40,7 @@ export default function App() {
       return sessionData.session.user
     }
 
-    const email = `demo-${crypto.randomUUID()}@proptrack.dev`
+    const email = `demo${Date.now()}@gmail.com`
     const password = crypto.randomUUID()
 
     const { data, error } = await supabase.auth.signUp({
