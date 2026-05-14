@@ -166,17 +166,17 @@ export default function App() {
       <main className="auth-page">
         <section className="auth-hero-panel">
           <div className="auth-brand-row">
-            <div className="logo-circle">P</div>
+            <div className="logo-circle">F</div>
             <div>
-              <div className="logo-title">PropTrack</div>
-              <div className="logo-subtitle">Portfolio OS</div>
+              <div className="logo-title">FundedAF</div>
+              <div className="logo-subtitle">Payout OS</div>
             </div>
           </div>
 
-          <div className="status-pill">PROP FIRM PERFORMANCE TRACKING</div>
-          <h1>Track the only number that really matters.</h1>
+          <div className="status-pill">PROP FIRM PAYOUT TRACKING</div>
+          <h1>Track what you paid in and what you pulled out.</h1>
           <p>
-            Separate paper profits from real extracted cash. Track eval costs, funded accounts, payouts, and firm-by-firm performance in one clean dashboard.
+            FundedAF separates paper challenge profits from real extracted cash. Track eval costs, funded accounts, payouts, and firm-by-firm ROI in one clean dashboard.
           </p>
 
           <div className="auth-feature-grid">
@@ -187,8 +187,8 @@ export default function App() {
             </div>
             <div className="auth-feature-card">
               <span>02</span>
-              <strong>Prop Firm Stats</strong>
-              <p>Compare Apex, Lucid, Tradify, and MyFundedFutures performance.</p>
+              <strong>Cashout ROI</strong>
+              <p>See which firms and account types are actually paying you back.</p>
             </div>
             <div className="auth-feature-card">
               <span>03</span>
@@ -201,11 +201,11 @@ export default function App() {
         <section className="auth-card">
           <div className="auth-card-header">
             <div className="auth-eyebrow">Welcome {authMode === 'login' ? 'back' : 'aboard'}</div>
-            <h2>{authMode === 'login' ? 'Log in to your tracker' : 'Create your account'}</h2>
+            <h2>{authMode === 'login' ? 'Log in to FundedAF' : 'Create your FundedAF account'}</h2>
             <p>
               {authMode === 'login'
-                ? 'Access your prop portfolio dashboard and continue tracking your real performance.'
-                : 'Start building a cleaner record of your prop firm costs, payouts, and account outcomes.'}
+                ? 'Access your payout-focused prop portfolio dashboard and keep tracking what actually hits your bank account.'
+                : 'Start tracking your prop firm costs, payouts, and account outcomes from day one.'}
             </p>
           </div>
 
@@ -257,7 +257,7 @@ export default function App() {
             }}
           >
             {authMode === 'login'
-              ? 'Create a PropTrack account'
+              ? 'Create a FundedAF account'
               : 'Log in to an existing account'}
           </button>
         </section>
@@ -270,10 +270,10 @@ export default function App() {
       <div className="dashboard-layout">
         <aside className="sidebar-card">
           <div className="logo-row">
-            <div className="logo-circle">P</div>
+            <div className="logo-circle">F</div>
             <div>
-              <div className="logo-title">PropTrack</div>
-              <div className="logo-subtitle">Portfolio OS</div>
+              <div className="logo-title">FundedAF</div>
+              <div className="logo-subtitle">Payout OS</div>
             </div>
           </div>
 
@@ -289,7 +289,7 @@ export default function App() {
               {formatMoney(totals.totalCosts)}
             </div>
             <div className="highlight-subtext">
-              Backend connected successfully.
+              Track cost basis before counting payouts as profit.
             </div>
           </div>
         </aside>
@@ -298,7 +298,7 @@ export default function App() {
           <div className="hero-card">
             <div className="status-pill">SUPABASE CONNECTED</div>
 
-            <h1>Prop Portfolio Tracker</h1>
+            <h1>FundedAF Dashboard</h1>
 
             <p>
               Accounts now persist in your real backend database and are protected by user-level security.
