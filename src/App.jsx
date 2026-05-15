@@ -57,7 +57,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const [weekStart, setWeekStart] = useState(getMonday())
+  const [weekStart] = useState(getMonday())
   const [dailyDrafts, setDailyDrafts] = useState({})
   const [savingEntryKey, setSavingEntryKey] = useState('')
 
@@ -291,15 +291,6 @@ export default function App() {
     setSavingEntryKey('')
   }
 
-  function changeWeek(offset) {
-    setWeekStart(current => {
-      const next = new Date(current)
-      next.setDate(current.getDate() + offset * 7)
-      return next
-    })
-    setDailyDrafts({})
-  }
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
@@ -465,7 +456,7 @@ export default function App() {
             <h1>FundedAF Dashboard</h1>
 
             <p>
-              Current week inputs are saved as dated entries, so your weekly view stays simple while your long-term history stays intact.
+              Enter this week's daily P&L below. Balances reflect every saved daily result, not just the current week.
             </p>
 
             {error ? (
@@ -519,16 +510,12 @@ export default function App() {
           </div>
 
           <div className="panel-card weekly-panel">
-            <div className="weekly-header">
+            <div className="weekly-header clean">
               <div>
                 <div className="panel-title">Daily Profit Inputs</div>
-                <p className="panel-copy">Showing {weekStartKey} through {weekEndKey}. Use previous/next week to view or edit historical daily entries.</p>
+                <p className="panel-copy">Current week: {weekStartKey} to {weekEndKey}</p>
               </div>
-              <div className="week-controls">
-                <button className="secondary-button compact" type="button" onClick={() => changeWeek(-1)}>Previous Week</button>
-                <button className="secondary-button compact" type="button" onClick={() => setWeekStart(getMonday())}>Current Week</button>
-                <button className="secondary-button compact" type="button" onClick={() => changeWeek(1)}>Next Week</button>
-              </div>
+              <button className="details-button" type="button">Account Details</button>
             </div>
 
             {loading ? (
