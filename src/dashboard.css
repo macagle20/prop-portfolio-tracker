@@ -1,0 +1,95 @@
+.dashboard-stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.accounts-panel .weekly-header.clean {
+  margin-bottom: 8px;
+}
+
+.account-tracking-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.account-tracking-section {
+  display: grid;
+  gap: 12px;
+}
+
+.tracking-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.compact-title {
+  margin-bottom: 0;
+}
+
+.tracking-count {
+  min-width: 34px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(153,255,61,0.12);
+  border: 1px solid rgba(153,255,61,0.22);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.account-tracking-table {
+  min-width: 1140px;
+}
+
+.account-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 210px;
+}
+
+.action-button {
+  min-height: 34px;
+  border-radius: 10px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.035);
+  color: #dbe2e8;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.action-button:hover {
+  background: rgba(255,255,255,0.07);
+}
+
+.funded-action {
+  border-color: rgba(153,255,61,0.28);
+  color: var(--green);
+}
+
+.breach-action {
+  border-color: rgba(255,193,7,0.25);
+  color: #ffd166;
+}
+
+.delete-action {
+  border-color: rgba(255,107,134,0.28);
+  color: var(--red);
+}
+
+@media (max-width: 1100px) {
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .dashboard-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
