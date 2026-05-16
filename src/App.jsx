@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
 
 const propFirms = ['Lucid', 'Apex', 'Tradify', 'MyFundedFutures']
-const statuses = ['Active', 'Passed', 'Busted', 'Paused']
+const statuses = ['Active', 'Passed', 'Breached', 'Busted', 'Paused']
 const accountTypes = ['Eval', 'Funded']
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const navPages = [
@@ -50,6 +50,10 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function isClosedAccount(account) {
+  return account.status === 'Breached' || account.status === 'Busted'
+}
+
 function PlaceholderPage({ title, description }) {
   return (
     <div className="panel-card placeholder-page">
@@ -89,6 +93,10 @@ export default function App() {
   const weekStartKey = weekDays[0].dateKey
   const weekEndKey = weekDays[weekDays.length - 1].dateKey
 
+  const visibleAccounts = useMemo(() => {
+    return accounts.filter(account => !isClosedAccount(account))
+  }, [accounts])
+
   const entryByAccountDate = useMemo(() => {
     return dailyEntries.reduce((map, entry) => {
       map[`${entry.account_id}-${entry.entry_date}`] = entry
@@ -117,10 +125,14 @@ export default function App() {
     const totalCosts = accounts.reduce((sum, account) => sum + Number(account.eval_cost || 0), 0)
     const weeklyPnl = Object.values(accountStats).reduce((sum, stat) => sum + stat.weekPnl, 0)
     const allTimePnl = Object.values(accountStats).reduce((sum, stat) => sum + stat.allTimePnl, 0)
+    const activeCombines = accounts.filter(a => a.account_type === 'Eval' && !isClosedAccount(a)).length
+    const activeFundedAccounts = accounts.filter(a => a.account_type === 'Funded' && !isClosedAccount(a)).length
 
     return {
       totalAccounts: accounts.length,
-      activeAccounts: accounts.filter(a => a.status !== 'Busted').length,
+      activeAccounts: activeCombines + activeFundedAccounts,
+      activeCombines,
+      activeFundedAccounts,
       fundedAccounts: accounts.filter(a => a.account_type === 'Funded').length,
       totalCosts,
       weeklyPnl,
@@ -231,7 +243,42 @@ export default function App() {
     await loadDashboardData()
   }
 
+  async function updateAccount(accountId, updates) {
+    setError('')
+
+    const { error } = await supabase
+      .from('accounts')
+      .update(updates)
+      .eq('id', accountId)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    await loadDashboardData()
+  }
+
+  async function moveToFunded(account) {
+    await updateAccount(account.id, {
+      account_type: 'Funded',
+      status: 'Active',
+    })
+  }
+
+  async function breachAccount(account) {
+    await updateAccount(account.id, {
+      status: 'Breached',
+    })
+  }
+
   async function deleteAccount(id) {
+    const confirmed = window.confirm(
+      'Delete this account? Deleting removes it from tracking and may prevent accurate metrics for this account later.'
+    )
+
+    if (!confirmed) return
+
     const { error } = await supabase
       .from('accounts')
       .delete()
@@ -491,7 +538,7 @@ export default function App() {
                   <div className="error-banner">{error}</div>
                 ) : null}
 
-                <div className="stats-grid">
+                <div className="stats-grid dashboard-stats-grid">
                   <div className="stat-card green">
                     <div className="label">This Week P&L</div>
                     <div className="value">{formatMoney(totals.weeklyPnl)}</div>
@@ -503,8 +550,13 @@ export default function App() {
                   </div>
 
                   <div className="stat-card">
-                    <div className="label">Active</div>
-                    <div className="value">{totals.activeAccounts}</div>
+                    <div className="label">Active Combines</div>
+                    <div className="value">{totals.activeCombines}</div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="label">Active Funded</div>
+                    <div className="value">{totals.activeFundedAccounts}</div>
                   </div>
                 </div>
               </div>
@@ -537,32 +589,32 @@ export default function App() {
                 </form>
               </div>
 
-              <div className="panel-card weekly-panel">
+              <div className="panel-card weekly-panel accounts-panel">
                 <div className="weekly-header clean">
                   <div>
-                    <div className="panel-title">Daily Profit Inputs</div>
+                    <div className="panel-title">Accounts</div>
                     <p className="panel-copy">Current week: {weekStartKey} to {weekEndKey}</p>
                   </div>
-                  <button className="details-button" type="button">Account Details</button>
                 </div>
 
                 {loading ? (
                   <div className="empty-state">Loading...</div>
-                ) : accounts.length === 0 ? (
-                  <div className="empty-state">No accounts yet. Add an account before entering daily profit.</div>
+                ) : visibleAccounts.length === 0 ? (
+                  <div className="empty-state">No active accounts yet. Add an account before entering daily profit.</div>
                 ) : (
                   <div className="weekly-table-wrap">
-                    <table className="weekly-table">
+                    <table className="weekly-table account-tracking-table">
                       <thead>
                         <tr>
                           <th>Account</th>
                           <th>Balance</th>
                           {weekDays.map(day => <th key={day.dateKey}>{day.shortLabel}<span>{day.dateKey.slice(5)}</span></th>)}
                           <th>Week</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {accounts.map(account => {
+                        {visibleAccounts.map(account => {
                           const stats = accountStats[account.id] || { currentBalance: account.starting_balance, weekPnl: 0 }
 
                           return (
@@ -594,61 +646,26 @@ export default function App() {
                                 )
                               })}
                               <td className={stats.weekPnl >= 0 ? 'positive-cell' : 'negative-cell'}>{formatMoney(stats.weekPnl)}</td>
+                              <td>
+                                <div className="account-action-row">
+                                  {account.account_type === 'Eval' ? (
+                                    <button className="action-button funded-action" type="button" onClick={() => moveToFunded(account)}>
+                                      Move to Funded
+                                    </button>
+                                  ) : null}
+                                  <button className="action-button breach-action" type="button" onClick={() => breachAccount(account)}>
+                                    Breached
+                                  </button>
+                                  <button className="action-button delete-action" type="button" onClick={() => deleteAccount(account.id)}>
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           )
                         })}
                       </tbody>
                     </table>
-                  </div>
-                )}
-              </div>
-
-              <div className="panel-card">
-                <div className="panel-title">Accounts</div>
-
-                {loading ? (
-                  <div className="empty-state">Loading...</div>
-                ) : accounts.length === 0 ? (
-                  <div className="empty-state">No accounts yet.</div>
-                ) : (
-                  <div className="accounts-grid">
-                    {accounts.map(account => {
-                      const stats = accountStats[account.id] || { currentBalance: account.starting_balance, allTimePnl: 0, weekPnl: 0 }
-
-                      return (
-                        <div className="account-card" key={account.id}>
-                          <div className="account-card-top">
-                            <div>
-                              <div className="account-name">{account.name}</div>
-                              <div className="account-meta">
-                                {account.firm} • {account.account_type}
-                              </div>
-                            </div>
-
-                            <button className="delete-button" onClick={() => deleteAccount(account.id)}>
-                              ×
-                            </button>
-                          </div>
-
-                          <div className="account-stats-row">
-                            <div>
-                              <div className="small-label">Status</div>
-                              <div className="small-value">{account.status}</div>
-                            </div>
-
-                            <div>
-                              <div className="small-label">Balance</div>
-                              <div className="small-value">{formatMoney(stats.currentBalance)}</div>
-                            </div>
-
-                            <div>
-                              <div className="small-label">Week P&L</div>
-                              <div className="small-value">{formatMoney(stats.weekPnl)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
                   </div>
                 )}
               </div>
