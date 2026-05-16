@@ -5,6 +5,12 @@ const propFirms = ['Lucid', 'Apex', 'Tradify', 'MyFundedFutures']
 const statuses = ['Active', 'Passed', 'Busted', 'Paused']
 const accountTypes = ['Eval', 'Funded']
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const navPages = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'payouts', label: 'Payouts' },
+  { id: 'analytics', label: 'Analytics' },
+  { id: 'settings', label: 'Settings' },
+]
 
 function formatMoney(value) {
   const num = Number(value || 0)
@@ -44,6 +50,16 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function PlaceholderPage({ title, description }) {
+  return (
+    <div className="panel-card placeholder-page">
+      <div className="status-pill">COMING SOON</div>
+      <h1>{title}</h1>
+      <p>{description}</p>
+    </div>
+  )
+}
+
 export default function App() {
   const [session, setSession] = useState(null)
   const [authMode, setAuthMode] = useState('login')
@@ -52,6 +68,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false)
   const [authMessage, setAuthMessage] = useState('')
 
+  const [activePage, setActivePage] = useState('dashboard')
   const [accounts, setAccounts] = useState([])
   const [dailyEntries, setDailyEntries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -420,6 +437,12 @@ export default function App() {
     )
   }
 
+  const pageDescriptions = {
+    payouts: 'Payout and cost tracking will live here. This page will become the clean money ledger without crowding the dashboard.',
+    analytics: 'Analytics and modeling will live here. This will use your real eval, funded, payout, and cost data once the core tracker is built.',
+    settings: 'Settings will live here. We will add defaults and customization only when the app actually needs them.',
+  }
+
   return (
     <main className="app-shell">
       <div className="dashboard-layout">
@@ -438,192 +461,204 @@ export default function App() {
             <button className="secondary-button" type="button" onClick={signOut}>Log Out</button>
           </div>
 
-          <div className="highlight-card">
-            <div className="highlight-label">Eval Costs</div>
-            <div className="highlight-value">
-              {formatMoney(totals.totalCosts)}
-            </div>
-            <div className="highlight-subtext">
-              Track cost basis before counting payouts as profit.
-            </div>
-          </div>
+          <nav className="sidebar-nav" aria-label="FundedAF pages">
+            {navPages.map(page => (
+              <button
+                key={page.id}
+                className={`nav-button ${activePage === page.id ? 'active' : ''}`}
+                type="button"
+                onClick={() => setActivePage(page.id)}
+              >
+                {page.label}
+              </button>
+            ))}
+          </nav>
         </aside>
 
         <section className="main-content">
-          <div className="hero-card">
-            <div className="status-pill">SUPABASE CONNECTED</div>
+          {activePage === 'dashboard' ? (
+            <>
+              <div className="hero-card">
+                <div className="status-pill">SUPABASE CONNECTED</div>
 
-            <h1>FundedAF Dashboard</h1>
+                <h1>FundedAF Dashboard</h1>
 
-            <p>
-              Enter this week's daily P&L below. Balances reflect every saved daily result, not just the current week.
-            </p>
+                <p>
+                  Enter this week's daily P&L below. Balances reflect every saved daily result, not just the current week.
+                </p>
 
-            {error ? (
-              <div className="error-banner">{error}</div>
-            ) : null}
+                {error ? (
+                  <div className="error-banner">{error}</div>
+                ) : null}
 
-            <div className="stats-grid">
-              <div className="stat-card green">
-                <div className="label">This Week P&L</div>
-                <div className="value">{formatMoney(totals.weeklyPnl)}</div>
+                <div className="stats-grid">
+                  <div className="stat-card green">
+                    <div className="label">This Week P&L</div>
+                    <div className="value">{formatMoney(totals.weeklyPnl)}</div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="label">All-Time P&L</div>
+                    <div className="value">{formatMoney(totals.allTimePnl)}</div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="label">Active</div>
+                    <div className="value">{totals.activeAccounts}</div>
+                  </div>
+                </div>
               </div>
 
-              <div className="stat-card">
-                <div className="label">All-Time P&L</div>
-                <div className="value">{formatMoney(totals.allTimePnl)}</div>
+              <div className="panel-card">
+                <div className="panel-title">Add Account</div>
+
+                <form className="account-form" onSubmit={addAccount}>
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Account Name" className="input" required />
+
+                  <select value={firm} onChange={(e) => setFirm(e.target.value)} className="input">
+                    {propFirms.map(firm => <option key={firm}>{firm}</option>)}
+                  </select>
+
+                  <select value={accountType} onChange={(e) => setAccountType(e.target.value)} className="input">
+                    {accountTypes.map(type => <option key={type}>{type}</option>)}
+                  </select>
+
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+                    {statuses.map(status => <option key={status}>{status}</option>)}
+                  </select>
+
+                  <input value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} placeholder="Starting Balance" className="input" />
+
+                  <input value={evalCost} onChange={(e) => setEvalCost(e.target.value)} placeholder="Eval Cost" className="input" />
+
+                  <button className="primary-button" type="submit">
+                    Add Account
+                  </button>
+                </form>
               </div>
 
-              <div className="stat-card">
-                <div className="label">Active</div>
-                <div className="value">{totals.activeAccounts}</div>
+              <div className="panel-card weekly-panel">
+                <div className="weekly-header clean">
+                  <div>
+                    <div className="panel-title">Daily Profit Inputs</div>
+                    <p className="panel-copy">Current week: {weekStartKey} to {weekEndKey}</p>
+                  </div>
+                  <button className="details-button" type="button">Account Details</button>
+                </div>
+
+                {loading ? (
+                  <div className="empty-state">Loading...</div>
+                ) : accounts.length === 0 ? (
+                  <div className="empty-state">No accounts yet. Add an account before entering daily profit.</div>
+                ) : (
+                  <div className="weekly-table-wrap">
+                    <table className="weekly-table">
+                      <thead>
+                        <tr>
+                          <th>Account</th>
+                          <th>Balance</th>
+                          {weekDays.map(day => <th key={day.dateKey}>{day.shortLabel}<span>{day.dateKey.slice(5)}</span></th>)}
+                          <th>Week</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {accounts.map(account => {
+                          const stats = accountStats[account.id] || { currentBalance: account.starting_balance, weekPnl: 0 }
+
+                          return (
+                            <tr key={account.id}>
+                              <td>
+                                <div className="weekly-account-name">{account.name}</div>
+                                <div className="account-meta">{account.firm} • {account.account_type}</div>
+                              </td>
+                              <td className="balance-cell">{formatMoney(stats.currentBalance)}</td>
+                              {weekDays.map(day => {
+                                const draftKey = `${account.id}-${day.dateKey}`
+                                const isSaving = savingEntryKey === draftKey
+                                return (
+                                  <td key={day.dateKey}>
+                                    <input
+                                      className="daily-input"
+                                      value={getDailyValue(account.id, day.dateKey)}
+                                      onChange={(event) => updateDailyDraft(account.id, day.dateKey, event.target.value)}
+                                      onBlur={() => saveDailyEntry(account, day.dateKey)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                          event.currentTarget.blur()
+                                        }
+                                      }}
+                                      placeholder="0"
+                                    />
+                                    {isSaving ? <div className="saving-label">Saving</div> : null}
+                                  </td>
+                                )
+                              })}
+                              <td className={stats.weekPnl >= 0 ? 'positive-cell' : 'negative-cell'}>{formatMoney(stats.weekPnl)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
 
-          <div className="panel-card">
-            <div className="panel-title">Add Account</div>
+              <div className="panel-card">
+                <div className="panel-title">Accounts</div>
 
-            <form className="account-form" onSubmit={addAccount}>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Account Name" className="input" required />
-
-              <select value={firm} onChange={(e) => setFirm(e.target.value)} className="input">
-                {propFirms.map(firm => <option key={firm}>{firm}</option>)}
-              </select>
-
-              <select value={accountType} onChange={(e) => setAccountType(e.target.value)} className="input">
-                {accountTypes.map(type => <option key={type}>{type}</option>)}
-              </select>
-
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
-                {statuses.map(status => <option key={status}>{status}</option>)}
-              </select>
-
-              <input value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} placeholder="Starting Balance" className="input" />
-
-              <input value={evalCost} onChange={(e) => setEvalCost(e.target.value)} placeholder="Eval Cost" className="input" />
-
-              <button className="primary-button" type="submit">
-                Add Account
-              </button>
-            </form>
-          </div>
-
-          <div className="panel-card weekly-panel">
-            <div className="weekly-header clean">
-              <div>
-                <div className="panel-title">Daily Profit Inputs</div>
-                <p className="panel-copy">Current week: {weekStartKey} to {weekEndKey}</p>
-              </div>
-              <button className="details-button" type="button">Account Details</button>
-            </div>
-
-            {loading ? (
-              <div className="empty-state">Loading...</div>
-            ) : accounts.length === 0 ? (
-              <div className="empty-state">No accounts yet. Add an account before entering daily profit.</div>
-            ) : (
-              <div className="weekly-table-wrap">
-                <table className="weekly-table">
-                  <thead>
-                    <tr>
-                      <th>Account</th>
-                      <th>Balance</th>
-                      {weekDays.map(day => <th key={day.dateKey}>{day.shortLabel}<span>{day.dateKey.slice(5)}</span></th>)}
-                      <th>Week</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                {loading ? (
+                  <div className="empty-state">Loading...</div>
+                ) : accounts.length === 0 ? (
+                  <div className="empty-state">No accounts yet.</div>
+                ) : (
+                  <div className="accounts-grid">
                     {accounts.map(account => {
-                      const stats = accountStats[account.id] || { currentBalance: account.starting_balance, weekPnl: 0 }
+                      const stats = accountStats[account.id] || { currentBalance: account.starting_balance, allTimePnl: 0, weekPnl: 0 }
 
                       return (
-                        <tr key={account.id}>
-                          <td>
-                            <div className="weekly-account-name">{account.name}</div>
-                            <div className="account-meta">{account.firm} • {account.account_type}</div>
-                          </td>
-                          <td className="balance-cell">{formatMoney(stats.currentBalance)}</td>
-                          {weekDays.map(day => {
-                            const draftKey = `${account.id}-${day.dateKey}`
-                            const isSaving = savingEntryKey === draftKey
-                            return (
-                              <td key={day.dateKey}>
-                                <input
-                                  className="daily-input"
-                                  value={getDailyValue(account.id, day.dateKey)}
-                                  onChange={(event) => updateDailyDraft(account.id, day.dateKey, event.target.value)}
-                                  onBlur={() => saveDailyEntry(account, day.dateKey)}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.currentTarget.blur()
-                                    }
-                                  }}
-                                  placeholder="0"
-                                />
-                                {isSaving ? <div className="saving-label">Saving</div> : null}
-                              </td>
-                            )
-                          })}
-                          <td className={stats.weekPnl >= 0 ? 'positive-cell' : 'negative-cell'}>{formatMoney(stats.weekPnl)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                        <div className="account-card" key={account.id}>
+                          <div className="account-card-top">
+                            <div>
+                              <div className="account-name">{account.name}</div>
+                              <div className="account-meta">
+                                {account.firm} • {account.account_type}
+                              </div>
+                            </div>
 
-          <div className="panel-card">
-            <div className="panel-title">Accounts</div>
+                            <button className="delete-button" onClick={() => deleteAccount(account.id)}>
+                              ×
+                            </button>
+                          </div>
 
-            {loading ? (
-              <div className="empty-state">Loading...</div>
-            ) : accounts.length === 0 ? (
-              <div className="empty-state">No accounts yet.</div>
-            ) : (
-              <div className="accounts-grid">
-                {accounts.map(account => {
-                  const stats = accountStats[account.id] || { currentBalance: account.starting_balance, allTimePnl: 0, weekPnl: 0 }
+                          <div className="account-stats-row">
+                            <div>
+                              <div className="small-label">Status</div>
+                              <div className="small-value">{account.status}</div>
+                            </div>
 
-                  return (
-                    <div className="account-card" key={account.id}>
-                      <div className="account-card-top">
-                        <div>
-                          <div className="account-name">{account.name}</div>
-                          <div className="account-meta">
-                            {account.firm} • {account.account_type}
+                            <div>
+                              <div className="small-label">Balance</div>
+                              <div className="small-value">{formatMoney(stats.currentBalance)}</div>
+                            </div>
+
+                            <div>
+                              <div className="small-label">Week P&L</div>
+                              <div className="small-value">{formatMoney(stats.weekPnl)}</div>
+                            </div>
                           </div>
                         </div>
-
-                        <button className="delete-button" onClick={() => deleteAccount(account.id)}>
-                          ×
-                        </button>
-                      </div>
-
-                      <div className="account-stats-row">
-                        <div>
-                          <div className="small-label">Status</div>
-                          <div className="small-value">{account.status}</div>
-                        </div>
-
-                        <div>
-                          <div className="small-label">Balance</div>
-                          <div className="small-value">{formatMoney(stats.currentBalance)}</div>
-                        </div>
-
-                        <div>
-                          <div className="small-label">Week P&L</div>
-                          <div className="small-value">{formatMoney(stats.weekPnl)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <PlaceholderPage
+              title={navPages.find(page => page.id === activePage)?.label}
+              description={pageDescriptions[activePage]}
+            />
+          )}
         </section>
       </div>
     </main>
