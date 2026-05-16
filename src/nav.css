@@ -1,0 +1,39 @@
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.nav-button {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.025);
+  color: #d7dde2;
+  text-align: left;
+  padding: 0 16px;
+  font-weight: 800;
+  transition: all 0.18s ease;
+}
+
+.nav-button:hover {
+  border-color: rgba(153,255,61,0.35);
+  background: rgba(153,255,61,0.05);
+  color: var(--green);
+}
+
+.nav-button.active {
+  background: linear-gradient(135deg, rgba(153,255,61,0.16), rgba(20,22,24,0.96));
+  border-color: rgba(153,255,61,0.32);
+  color: var(--green);
+  box-shadow: inset 3px 0 0 var(--green);
+}
+
+.placeholder-page {
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
